@@ -1,35 +1,26 @@
 #if 1
 
 #include <iostream>
+#include <queue>
 #include <vector>
-#include <algorithm>
+#include <climits>
 using namespace std;
 
-inline int my_pow(int a) { return a * a; }
+using COST_TYPE = long long;
+inline COST_TYPE my_pow(int a) { return a * a; }
 
 struct Road
 {
+	COST_TYPE cost;
 	int C;
 	int T;
-	vector<int> costMemo;
-	Road(int c, int t) : C(c), T(t), costMemo() { costMemo.push_back(0); }
-	int getCost(int P) 
+	Road(int c, int t) : cost(0), C(c), T(t) {}
+	void setCost(int P)
 	{
-		if (P <= T) return 0;
+		if (P <= T)
+			cost = 0;
 		else
-		{
-			return C * my_pow(P - T);
-			/*
-			if ((P - T) == costMemo.size())
-			{
-				int ret = C * my_pow(P - T);
-				costMemo.push_back(ret);
-				return ret;
-			}
-			else
-				return costMemo[P - T];
-				*/
-		}
+			cost = C * my_pow(P - T);
 	}
 };
 
@@ -42,97 +33,103 @@ struct Edge
 
 struct Crossroad
 {
+	int num;
 	vector<Edge> edges;
+	Crossroad(int n) : num(n), edges() {}
 };
 
 bool visited[100001];
 vector<Crossroad> crs;
-vector<Road*> root;
+vector<Road*> roads;
 int maxPerson = 0;
 int N = 0, M = 0, K = 0;
+const COST_TYPE MAX_COST = LLONG_MAX;
 
-void dfs(int nCr, int p)
+vector<COST_TYPE> dijkstra(int nCr)
 {
-	visited[nCr] = true;
-	int targetP = p;
-	for (int i = maxPerson; i < p; ++i)
-	{
-		int sum = 0;
-		for (Road* pr : root)
-		{
-			sum += pr->getCost(i);
-		}
-		if (sum > K)
-		{
-			targetP = i - 1;
-			break;
-		}
-		else if (sum == K)
-		{
-			targetP = i;
-			break;
-		}
-		else
-			continue;
-	}
+	vector<COST_TYPE> costs(N + 1, MAX_COST);
+	costs[nCr] = 0;
+	priority_queue<pair<COST_TYPE, Crossroad*>> pq;
 
-	//check case
-	if (targetP > maxPerson)
+	pq.push(make_pair(0, &crs[nCr]));
+
+	while (pq.empty() == false)
 	{
-		if (nCr == N)
+		COST_TYPE cost = -pq.top().first;
+		Crossroad* cr = pq.top().second;
+		pq.pop();
+
+		if (costs[cr->num] < cost) continue;
+		if (cost > K) break;
+
+		for (Edge& edge : cr->edges)
 		{
-			maxPerson = targetP;
-		}
-		else
-		{
-			for (Edge& edge : crs[nCr].edges)
+			int nextCr = edge.nCr;
+			COST_TYPE nextCost = cost + (edge.road)->cost;
+
+			if (costs[nextCr] > nextCost)
 			{
-				if (visited[edge.nCr] == false)
-				{
-					root.push_back(edge.road);
-					dfs(edge.nCr, targetP);
-					root.pop_back();
-				}
+				costs[nextCr] = nextCost;
+				pq.push(make_pair(-nextCost, &crs[nextCr]));
 			}
 		}
 	}
-
-	visited[nCr] = false;
-}
-
-void dfsAll()
-{
-	visited[1] = true;
-	for (Edge& edge : crs[1].edges)
-	{
-		root.push_back(edge.road);
-		dfs(edge.nCr, 32623);
-		root.pop_back();
-	}
+	return costs;
 }
 
 int main()
 {
 	cin >> N >> M >> K;
 
-	crs.resize(N+1);
+	crs.push_back(Crossroad(0));
+	for (int i = 1; i <= N; ++i)
+	{
+		crs.push_back(Crossroad(i));
+	}
 
 	int A = 0, B = 0, C = 0, T = 0;
 	for (int i = 0; i < M; ++i)
 	{
 		cin >> A >> B >> C >> T;
 		Road* road = new Road(C, T);
+		roads.push_back(road);
 		crs[A].edges.push_back(Edge(B, road));
 		crs[B].edges.push_back(Edge(A, road));
 	}
 
-	//dfs
-	dfsAll();
+	int start = 0;
+	int end = 32768; // 32623
 
-	cout << maxPerson << endl;
+	int prevStart = -1;
+	int prevEnd = -1;
+
+	while ((prevStart != start) || (prevEnd != end))
+	{
+		int mid = (start + end) / 2;
+		for (Road* road : roads)
+			road->setCost(mid);
+
+		vector<COST_TYPE> costs = dijkstra(1);
+
+		prevStart = start;
+		prevEnd = end;
+
+		if (costs[N] > K)
+			end = mid;
+		else
+			start = mid;
+	}
+
+	//check which is result
+	for (Road* road : roads)
+		road->setCost(end);
+	vector<COST_TYPE> costs_end = dijkstra(1);
+	if (costs_end[N] > K)
+		cout << start << endl;
+	else
+		cout << end << endl;
+
+	return 0;
 }
-
-
-
 
 #endif
